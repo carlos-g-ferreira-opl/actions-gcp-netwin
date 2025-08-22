@@ -1,0 +1,70 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - iam-lets-encrypt-cert.yaml
+  - iam-spc.yaml
+  - ../../../../iam-public/automation/base
+  - ingress.yaml
+
+namespace: iam
+
+patches:
+  - path: patches/node-selector.yaml
+    target:
+      kind: Deployment
+  - path: patches/node-selector.yaml
+    target:
+      kind: StatefulSet
+  - path: patches/node-selector.yaml
+    target:
+      kind: Job
+  - path: patches/node-selector.yaml
+    target:
+      kind: Cronjob
+  - path: patches/iam-migrate-configmap.yaml
+    target:
+      kind: ConfigMap
+      name: iam-migrate
+  - path: patches/iam-static.yaml
+    target:
+      kind: Deployment
+      name: iam-static
+  - path: patches/iam-service.yaml
+    target:
+      kind: Deployment
+      name: iam-service
+  - path: patches/iam-import-csv-generate-credentials.yaml
+    target:
+      kind: Job
+      name: iam-import-csv-generate-credentials
+  # Using secret provider class
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: iam-db-secrets
+
+images:
+  - name: IAM_SERVICE
+    newName: gru.ocir.io/grodcxdpuvvy/vivo-altaia/iam/iam-service # GCP
+    newTag: 4.17.0
+  - name: IAM_STATIC
+    newName: gru.ocir.io/grodcxdpuvvy/vivo-altaia/iam/iam-nginx # GCP
+    newTag: 4.17.0
+
+replicas:
+  - { name: iam-service, count: 1 }
+  - { name: iam-static, count: 2 }
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: iam-icons
+    files:
+      - icons/assurance.svg
+      - icons/fulfillment.svg
+      - icons/inventory.svg

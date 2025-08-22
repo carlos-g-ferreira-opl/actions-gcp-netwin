@@ -1,0 +1,61 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app.kubernetes.io/name: iam-import-csv-generate-credentials
+  name: iam-import-csv-generate-credentials
+spec:
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      name: import-csv-generate-credentials
+    spec:
+      containers:
+        - name: import-csv-generate-credentials
+          command:
+            - sh
+            - -c
+            - "ansible-playbook -vv --diff -i /opt/ptin/automation/iam/inventory/sample /opt/ptin/automation/iam/import_csv_generate_credentials.yml --skip-tags iam_yum -e @/opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml -e @/opt/ptin/iam/conf/kube/ansiblevars.yaml"
+          image: IAM_SERVICE
+          imagePullPolicy: Always
+          securityContext:
+            runAsGroup: 2279
+            runAsUser: 2279
+          env:
+            - name: ANSIBLE_VAULT_PASSWORD_FILE
+              value: "/opt/ptin/iam/conf/kube/vault-password-file"
+          volumeMounts:
+            # Secrets
+            - name: secrets-vl
+              mountPath: /opt/ptin/iam/conf/kube/vault-password-file
+              subPath: vault-password-file
+            - name: secrets-db-vl
+              mountPath: /opt/ptin/iam/conf/kube/iam-admin-db-password
+              subPath: iam-admin-db-password
+            - name: secrets-db-vl
+              mountPath: /opt/ptin/iam/conf/kube/iam-db-password
+              subPath: iam-db-password
+            # Files
+            - name: ansiblevars-vl
+              mountPath: /opt/ptin/iam/conf/kube/ansiblevars.yaml
+              subPath: ansiblevars.yaml
+            - name: ansiblevars-vl
+              mountPath: /opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml
+              subPath: ansiblevars_defaults.yaml
+      restartPolicy: Never
+      volumes:
+        - name: secrets-vl
+          secret:
+            secretName: iam-secrets
+        - name: secrets-db-vl
+          secret:
+            secretName: iam-db-secrets
+        - configMap:
+            items:
+              - key: ansiblevars.yaml
+                path: ansiblevars.yaml
+              - key: ansiblevars_defaults.yaml
+                path: ansiblevars_defaults.yaml
+            name: iam-migrate
+          name: ansiblevars-vl

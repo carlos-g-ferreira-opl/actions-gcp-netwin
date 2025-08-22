@@ -1,0 +1,81 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: iam-static
+  name: iam-static
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: iam
+      app.kubernetes.io/name: iam-static
+  #serviceName: iam-static
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: iam
+        app.kubernetes.io/name: iam-static
+    spec:
+      containers:
+      - image: IAM_STATIC
+        imagePullPolicy: Always
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          periodSeconds: 10
+          failureThreshold: 1
+          initialDelaySeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+          periodSeconds: 30
+          failureThreshold: 3
+          initialDelaySeconds: 5
+        name: iam-static
+        ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+        resources:
+#           limits:
+#             cpu: 500Mi
+#             memory: 1Gi
+          requests:
+            cpu: 50m
+            memory: 50Mi
+        volumeMounts:
+        - name: nginxconfd
+          mountPath: /etc/nginx/conf.d
+      securityContext:
+        runAsGroup: 998
+        runAsUser: 999
+      volumes:
+      - configMap:
+          items:
+          - key: iam.conf
+            path: iam.conf
+          name: nginx-files
+        name: nginxconfd
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                    - iam-nginx
+                topologyKey: topology.kubernetes.io/zone
+              weight: 100
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - iam-nginx
+              topologyKey: kubernetes.io/hostname

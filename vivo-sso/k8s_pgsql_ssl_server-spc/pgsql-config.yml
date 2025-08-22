@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-iam-config
+  labels:
+    app: postgres
+data:
+  pg_hba.conf: |
+    # TYPE  DATABASE        USER            ADDRESS                 METHOD
+    local   all             all                                     trust
+    host    all             all             127.0.0.1/32            trust
+    host    all             all             ::1/128                 trust
+    local   replication     all                                     trust
+    host    replication     all             127.0.0.1/32            trust
+    host    replication     all             ::1/128                 trust
+    host    all             all             all                     md5
+    hostssl all             all             all                     md5
+  postgresql.conf: |
+    listen_addresses = '*'
+    max_connections = 100
+    ssl = on
+    ssl_ca_file = '/var/lib/postgresql/data/certs/ca.crt'
+    ssl_cert_file = '/var/lib/postgresql/data/certs/tls.crt'
+    ssl_key_file = '/var/lib/postgresql/data/certs/tls.key'
+    shared_buffers = 128MB
+    dynamic_shared_memory_type = posix
+    max_wal_size = 1GB
+    min_wal_size = 80MB
+    log_timezone = 'Etc/UTC'
+    datestyle = 'iso, mdy'
+    timezone = 'Etc/UTC'
+    lc_messages = 'en_US.utf8'
+    lc_monetary = 'en_US.utf8'
+    lc_numeric = 'en_US.utf8'
+    lc_time = 'en_US.utf8'
+    default_text_search_config = 'pg_catalog.english'
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-iam-initdb
+  labels:
+    app: postgres
+data:
+  createdb.sh: |
+    #!/bin/bash
+    set -e
+    psql -v ON_ERROR_STOP=1 --dbname "postgres" -c "CREATE USER iam PASSWORD '$IAM_DB_IAM_PWD' VALID UNTIL 'INFINITY';" || true
+    psql -v ON_ERROR_STOP=1 --dbname "postgres" <<-EOSQL
+    SELECT 'CREATE DATABASE iam'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'iam')\\gexec
+    GRANT ALL ON DATABASE iam TO iam;
+    EOSQL
+
+    psql -v ON_ERROR_STOP=1 --dbname "iam" <<-EOSQL
+    CREATE SCHEMA IF NOT EXISTS iam AUTHORIZATION iam;
+    GRANT ALL ON SCHEMA iam TO iam;
+
+    DO
+    \$\$ 
+      BEGIN EXECUTE format('GRANT ALL ON SCHEMA iam TO %I', current_user ); 
+      END 
+    \$\$;
+
+    ALTER DEFAULT PRIVILEGES FOR ROLE iam IN SCHEMA iam GRANT ALL ON FUNCTIONS TO iam;
+    ALTER ROLE iam SET default_tablespace = pg_default;
+    ALTER ROLE iam SET search_path TO iam;
+    EOSQL

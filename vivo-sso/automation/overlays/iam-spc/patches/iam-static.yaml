@@ -1,0 +1,32 @@
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: iam-icons
+    mountPath: /opt/ptin/iam/images/blue-alt/assurance.svg
+    subPath: assurance.svg
+
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: iam-icons
+    mountPath: /opt/ptin/iam/images/blue-alt/fulfillment.svg
+    subPath: fulfillment.svg
+
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: iam-icons
+    mountPath: /opt/ptin/iam/images/blue-alt/inventory.svg
+    subPath: inventory.svg
+
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: iam-icons
+    configMap:
+    name: iam-icons
+
+- op: replace
+  path: /spec/template/spec/containers/0/imagePullPolicy
+  value: IfNotPresent
+

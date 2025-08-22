@@ -1,0 +1,4 @@
+AttributeName,StoreName,StoreMaster,PropertyLocalId
+email,{{ iam_oidc_store_name }},true,email
+name,{{ iam_oidc_store_name }},true,given_name
+username,{{ iam_oidc_store_name }},true,upn

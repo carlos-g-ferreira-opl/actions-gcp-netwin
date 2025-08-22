@@ -1,0 +1,20 @@
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: pgsql-credentials
+spec:
+  provider: oci
+  parameters:
+    vaultId: ocid1.vault.oc1.sa-saopaulo-1.fftubcvyaabko.abtxeljrn6dpwvnjwsqvhd2tersj232dgr4p4ohfpq5sre3kkri4dsejx7aq
+    secrets: |
+      - name: IAM_DB_IAM_PWD
+      - name: IAM_DB_POSTGRES_PWD
+    authType: instance
+  secretObjects:
+  - data:
+    - key: POSTGRES_PASSWORD
+      objectName: IAM_DB_POSTGRES_PWD
+    - key: IAM_DB_IAM_PWD
+      objectName: IAM_DB_IAM_PWD
+    secretName: postgres-iam-secret
+    type: Opaque

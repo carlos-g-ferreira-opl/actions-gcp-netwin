@@ -1,0 +1,98 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/instance: iam
+  name: iam-import-config
+data:
+  all.yml: |-
+    iam_configurator_api_client_id: 6CXh5DWVQ021dOu_T63yKg
+    iam_configurator_api_client_secret: KgqgfZfOTB6fLSJmZrykFQ
+    iam_configurator_api_address: http://iam-service.iam-dev:8080
+
+    iam_configurator_api_folders:
+      - folder: '/'
+        entity_opr: 'update-or-create'
+        rel_opr: 'create'
+
+    iam_url: https://iam-dev.t-k8s.ptin.corppt.com
+
+    #Keycloak oidc store configuration 
+    iam_oidc_store_name: "Keycloak store"
+    iam_oidc_store_description: https://iam-test.c.ptin.corppt.com:8443
+    iam_oidc_store_master: true
+    iam_oidc_store_enabled: true
+
+    #Keycloak oidc auth procedure configuration 
+    iam_oidc_authn_config_name: "Keycloak Auth Procedure"
+    iam_oidc_authn_config_implementation_class: pt.ptinovacao.iam.connector.oidc.OIDCAuthenticator
+    iam_oidc_authn_config_implementation_jar_url: file:///opt/ptin/iam/lib/iam-connector-oidc.jar
+    iam_oidc_authn_type_name: "OpenID Connect"
+    iam_oidc_authn_type_description: "OpenID Connect"
+
+    #Keycloak oidc auth config configuration value
+    iam_oidc_userinfo_tokenrequest_scope: "openid admin"
+    iam_oidc_end_session_endpoint: http://iam-test.c.ptin.corppt.com:8080/realms/OIDC-Tenant/protocol/openid-connect/logout
+    iam_oidc_user_id_attr: sub
+    iam_oidc_secret: cpBYAp2esAnfPWyYUhhSfQGXeKvwc2p5
+    iam_oidc_validate_signature: false
+    iam_oidc_client_id: iam
+    iam_oidc_issuer: http://iam-test.c.ptin.corppt.com:8080/realms/OIDC-Tenant
+    iam_oidc_send_cred_on_body: true
+    iam_oidc_authorization_endpoint: http://iam-test.c.ptin.corppt.com:8080/realms/OIDC-Tenant/protocol/openid-connect/auth
+    iam_oidc_userinfo_endpoint: http://iam-test.c.ptin.corppt.com:8080/admin/realms/OIDC-Tenant/users/${userId}
+    iam_oidc_validate_expiration_date: false
+    iam_oidc_secundary_user_id_attr: preferred_username
+    iam_oidc_send_nonce: false
+    iam_oidc_send_logout_redirect_url: true
+    iam_oidc_send_state_on_logout: false
+    iam_oidc_scopes: openid profile
+    iam_oidc_token_endpoint: http://iam-test.c.ptin.corppt.com:8080/realms/OIDC-Tenant/protocol/openid-connect/token
+    iam_oidc_authn_procedure_image_url: ""
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app.kubernetes.io/instance: iam
+    app.kubernetes.io/name: iam-import-csvs
+  name: iam-import-csvs
+spec:
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      name: iam-import-csvs
+    spec:
+      containers:
+        - name: iam-import-csvs
+          command:
+              - sh
+              - -c
+              - "cp -Lr /opt/alticelabs/iam/csv_base/* /opt/alticelabs/iam/csv; /entrypoint.sh"
+          image: IAM_IMPORT
+          imagePullPolicy: Always
+          env:
+            - name: USE_UNSECURE
+              value: "true"
+          volumeMounts:
+            - name: iam-import-config
+              mountPath: /config/all.yml
+              subPath: all.yml
+            - name: iam-import-csvs
+              mountPath: /opt/alticelabs/iam/csv_base
+            - name: iam-csvs
+              mountPath: /opt/alticelabs/iam/csv
+      restartPolicy: Never
+      volumes:
+      - configMap:
+          name: iam-import-config
+        name: iam-import-config
+      - name: iam-import-csvs
+        configMap:
+          name: iam-import-csvs
+      - name: iam-csvs
+        emptyDir:
+          medium: "Memory"
+        

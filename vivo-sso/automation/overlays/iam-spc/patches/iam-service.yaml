@@ -1,0 +1,79 @@
+- op: replace
+  path: /spec/template/spec/containers/0/livenessProbe/tcpSocket/port
+  value: 8080
+
+- op: replace
+  path: /spec/template/spec/containers/0/resources
+  values:
+    requests:
+      cpu: 50m
+      memory: 100Mi
+
+- op: replace
+  path: /spec/template/spec/containers/0/imagePullPolicy
+  value: IfNotPresent
+
+- op: replace
+  path: /spec/template/spec/initContainers/0/imagePullPolicy
+  value: IfNotPresent
+
+# secretProvederClass
+- op: add
+  path: /spec/template/spec/volumes/-
+  value: 
+    name: secrets-store-inline
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: "iam-credentials"
+
+- op: add
+  path: /spec/template/spec/initContainers/0/volumeMounts/-
+  value: 
+    name: secrets-store-inline
+    mountPath: "/mnt/secrets-store"
+    readOnly: true
+
+- op: add
+  path: /spec/template/spec/initContainers/0/env/-
+  value:
+    name: IAM_DB_IAM_PWD
+    valueFrom:
+      secretKeyRef:
+        name: iam-db-secrets
+        key: iam-db-password
+
+- op: add
+  path: /spec/template/spec/initContainers/0/env/-
+  value:
+    name: IAM_DB_POSTGRES_PWD
+    valueFrom:
+      secretKeyRef:
+        name: iam-db-secrets
+        key: iam-admin-db-password
+
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value: 
+    name: secrets-store-inline
+    mountPath: "/mnt/secrets-store"
+    readOnly: true
+
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: IAM_DB_IAM_PWD
+    valueFrom:
+      secretKeyRef:
+        name: iam-db-secrets
+        key: iam-db-password
+
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: IAM_DB_POSTGRES_PWD
+    valueFrom:
+      secretKeyRef:
+        name: iam-db-secrets
+        key: iam-admin-db-password

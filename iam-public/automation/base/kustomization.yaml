@@ -1,0 +1,39 @@
+# Labels to add to all resources and selectors.
+commonLabels:
+  app.kubernetes.io/instance: iam
+
+# Each entry in this list results in the creation of
+# one ConfigMap resource (it's a generator of n maps).
+#configMapGenerator:
+#- files:
+#  - conf/ansiblevars.yaml
+#  - conf/migrate.sh
+#  - conf/run.sh
+#  - conf/vault-password-file
+#  name: iam-migrate
+#- files:
+#  - conf/iam.conf
+#  name: nginx-files
+
+## Images modify the tags for images without
+## creating patches.
+images:
+  - name: IAM_SERVICE
+    newTag: 4.17.0
+  - name: IAM_STATIC
+    newTag: 4.17.0
+  - name: IAM_IMPORT
+    newTag: 4.17.0
+
+#namespace: iam
+
+# List of resource files that kustomize reads, modifies
+# and emits as a YAML string
+resources:
+  - secrets.yaml
+  - configmaps.yaml
+  - deployment-iam.yaml
+  - service-iam.yaml
+  - deployment-iam-static.yaml
+  - service-iam-static.yaml
+  - job-update-csv.yaml

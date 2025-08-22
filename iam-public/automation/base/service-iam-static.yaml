@@ -1,0 +1,18 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: iam-static
+  name: iam-static
+spec:
+  sessionAffinity: ClientIP
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app.kubernetes.io/instance: iam
+    app.kubernetes.io/name: iam-static
+  type: NodePort

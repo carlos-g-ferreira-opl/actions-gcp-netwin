@@ -1,0 +1,15 @@
+
+commonLabels:
+  app.kubernetes.io/instance: iam
+
+resources:
+- imports.yaml
+
+configMapGenerator:
+  - name: iam-import-csvs
+    files:
+    - ./csvs/01_stores_authprocedures.csv.SAMPLE
+    - ./csvs/02_attributes.csv.SAMPLE
+
+generatorOptions:
+  disableNameSuffixHash: true

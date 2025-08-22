@@ -1,0 +1,72 @@
+- op: replace
+  path: /data/ansiblevars.yaml
+  value:
+    |-
+    ---
+    # iam db already created
+    iam_skip_db_creation: true
+
+    # Identity Provider (IdP) access (VIP: name.domain, IP)
+    iam_db_addr: postgres-iam-svc.iam.svc.cluster.local
+    iam_IDP_addr: iam.internal.vivo.com.br
+
+    iam_db_adhoc_user: iam
+    iam_db_adhoc_pass: "{{ lookup('env','IAM_DB_IAM_PWD') }}"
+    iam_db_password: "{{ lookup('env','IAM_DB_IAM_PWD') }}"
+
+    iam_db_type: pgsql11
+    iam_pgsql_minorVersion: 11
+    redHat_version: 7
+
+    iam_db_padmin_login: postgres
+    iam_db_padmin_user: postgres
+    iam_db_padmin_pass: "{{ lookup('env','IAM_DB_POSTGRES_PWD') }}"
+
+    iam_so_padmin_user: postgres
+    iam_so_padmin_group: postgres
+
+    iam_db_user: iam
+
+    iam_db_dbname: iam
+
+    iam_create_db_user: iam
+
+    iam_adhoc_conn_string: "--set=sslmode=require -h {{ iam_db_addr }} -p {{ iam_db_port }} -d {{ iam_db_adhoc_dbname }} -U {{ iam_db_adhoc_user }}"
+    iam_db_conn_string: "--set=sslmode=require -h {{ iam_db_addr }} -p {{ iam_db_port }} -d {{ iam_db_dbname }} -U {{ iam_db_user }} "
+
+    iam_db_url_tmp: "{{ iam_db_addr }}:{{ iam_db_port }}/{{ iam_db_dbname }}?sslmode=require"
+
+    iam_core_modules:
+     - iam-application
+     - iam-dynamic-auto-provisioning
+
+    iam_server_url: http://127.0.0.1:8080
+    # The entity to provision on IAM ( Options: role | usergroup )
+    iam_attributeIs: usergroup
+    # The attribute id which is to retrieve the entity value to provision
+    iam_attribute_id: 
+    # Set true if is to clean the previous entities or false if is to add new entity
+    iam_entity_clean: true
+    # Service which will belong the credentials
+    iam_auto_provisioning_service_name: "IAM :: Admin Panel"
+
+    # Admin panel credentials ( leave empty on first installation ); introduced in 4.10.4
+    iam_service_credentials_id: 
+    iam_service_credentials_secret: 
+
+    # not used but must be declared
+    iam_attribute_regex: 
+
+    #Define propriedades do portal de autenticação (estas propriedades estão descritas mais abaixo no ponto 1.2 para o ficheiro iam-authentication-portal.properties)
+    iam_AUTH_properties:
+     - { name: 'AllowCrossOriginRequestsOnOAuth' , VALUE: 'true'}
+     - { name: 'AutoCreateStoreId' , VALUE: ''}
+     - { name: 'PostScriptMode' , VALUE: 'InLogin'}
+     - { name: 'AutoCreatePosScript' , VALUE: '/opt/ptin/iam/bin/iam-dynamic-auto-provisioning'}
+     - { name: 'AutoCreateNameField' , VALUE: 'name'}
+     - { name: 'AutoCreateUserNamePattern' , VALUE: 'false'}
+     - { name: 'AutoCreateUserDefaultLanguage' , VALUE: 'PT-BR'}
+     - { name: 'AutoCreateRolesId' , VALUE: ''}
+     - { name: 'mail.server.host' , VALUE: ''}
+     - { name: 'mail.server.port' , VALUE: ''}
+     - { name: 'mail.server.from' , VALUE: ''}

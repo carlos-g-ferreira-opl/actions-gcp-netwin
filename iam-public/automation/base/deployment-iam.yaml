@@ -1,0 +1,191 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: iam-service
+  name: iam-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: iam
+      app.kubernetes.io/name: iam-service
+  #serviceName: iam
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: iam-service
+      annotations:
+        prometheus.io.label.application: iam
+    spec:
+      initContainers:
+        - name: migrate
+          command:
+            - bash
+            - -xe
+            - /opt/ptin/iam/bin/kube/migrate.sh
+#        - command: ['sh', '-c', 'echo The app is running! && sleep 3600']
+          image: IAM_SERVICE
+          imagePullPolicy: Always
+          env:
+            - name: ANSIBLE_VAULT_PASSWORD_FILE
+              value: "/opt/ptin/iam/conf/kube/vault-password-file"
+          volumeMounts:
+            # Secrets
+            - name: secrets-vl
+              mountPath: /opt/ptin/iam/conf/kube/vault-password-file
+              subPath: vault-password-file
+            - name: secrets-db-vl
+              mountPath: /opt/ptin/iam/conf/kube/iam-admin-db-password
+              subPath: iam-admin-db-password
+            - name: secrets-db-vl
+              mountPath: /opt/ptin/iam/conf/kube/iam-db-password
+              subPath: iam-db-password
+            # Files
+            - name: ansiblevars-vl
+              mountPath: /opt/ptin/iam/conf/kube/ansiblevars.yaml
+              subPath: ansiblevars.yaml
+            - name: ansiblevars-vl
+              mountPath: /opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml
+              subPath: ansiblevars_defaults.yaml
+            - name: migrate-vl
+              mountPath: /opt/ptin/iam/bin/kube
+            - name: iam-role-create-db-vl
+              mountPath: /opt/ptin/automation/iam/roles/create_iam_db_adhoc/tasks/main.yml
+              subPath: main.yml
+      containers:
+        - name: iam
+          # Container name (iam) is referenced in Grafana dashboards
+          command:
+            - bash
+            - -xe
+            - /opt/ptin/iam/bin/kube/run.sh
+          env:
+            - name: ANSIBLE_VAULT_PASSWORD_FILE
+              value: "/opt/ptin/iam/conf/kube/vault-password-file"
+            - name: RUNASIS
+              value: jboss
+            - name: JBOSS_USER
+              value: jboss
+          image: IAM_SERVICE
+          imagePullPolicy: Always
+          livenessProbe:
+            initialDelaySeconds: 300
+            tcpSocket:
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            periodSeconds: 10
+            failureThreshold: 1
+            initialDelaySeconds: 60
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+            - containerPort: 8080
+              name: iam-metrics
+            - containerPort: 8081
+              name: http-proxy
+              protocol: TCP
+            - containerPort: 8443
+              name: https
+              protocol: TCP
+          resources:
+#            limits:
+#              cpu: 1
+#              memory: 3Gi
+            requests:
+              cpu: 50m
+              memory: 1300Mi
+          volumeMounts:
+            # Secrets
+            - name: secrets-vl
+              mountPath: /opt/ptin/iam/conf/kube/vault-password-file
+              subPath: vault-password-file
+            - name: secrets-db-vl
+              mountPath: /opt/ptin/iam/conf/kube/iam-admin-db-password
+              subPath: iam-admin-db-password
+            - name: secrets-db-vl
+              mountPath: /opt/ptin/iam/conf/kube/iam-db-password
+              subPath: iam-db-password
+            # Files
+            - name: ansiblevars-vl
+              mountPath: /opt/ptin/iam/conf/kube/ansiblevars.yaml
+              subPath: ansiblevars.yaml
+            - name: ansiblevars-vl
+              mountPath: /opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml
+              subPath: ansiblevars_defaults.yaml
+            - name: run-vl
+              mountPath: /opt/ptin/iam/bin/kube
+            - name: iam-aui-vl
+              mountPath: /opt/ptin/iam/conf/iam-aui-synchronism.properties
+              subPath: iam-aui-synchronism.properties
+            - name: iam-role-create-db-vl
+              mountPath: /opt/ptin/automation/iam/roles/create_iam_db_adhoc/tasks/main.yml
+              subPath: main.yml
+      securityContext:
+        runAsGroup: 2279
+        runAsUser: 2279
+        fsGroup: 998
+      volumes:
+        - name: secrets-vl
+          secret:
+            secretName: iam-secrets
+        - name: secrets-db-vl
+          secret:
+            secretName: iam-db-secrets
+        - configMap:
+            items:
+              - key: migrate.sh
+                path: migrate.sh
+            name: iam-migrate
+          name: migrate-vl
+        - configMap:
+            items:
+              - key: run.sh
+                path: run.sh
+            name: iam-migrate
+          name: run-vl
+        - configMap:
+            items:
+              - key: ansiblevars.yaml
+                path: ansiblevars.yaml
+              - key: ansiblevars_defaults.yaml
+                path: ansiblevars_defaults.yaml
+            name: iam-migrate
+          name: ansiblevars-vl
+        - configMap:
+            items:
+              - key: iam-aui-synchronism.properties
+                path: iam-aui-synchronism.properties
+            name: iam-aui
+          name: iam-aui-vl
+        - configMap:
+            items:
+              - key: main.yml
+                path: main.yml
+            name: iam-role-create-db
+          name: iam-role-create-db-vl
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                    - iam-service
+                topologyKey: topology.kubernetes.io/zone
+              weight: 100
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - iam-service
+              topologyKey: kubernetes.io/hostname

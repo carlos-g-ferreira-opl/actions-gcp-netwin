@@ -1,0 +1,87 @@
+version: 0.1
+component: build
+timeoutInSeconds: 6000
+runAs: root
+shell: bash      
+env:
+  variables:
+  vaultVariables:
+    SA_TOKEN: ocid1.vaultsecret.oc1.sa-saopaulo-1.amaaaaaa22oht3iarqbwg5rhr5l7sctil3uz4wx7zqlohi2c6kgtmc7bieva
+  exportedVariables:
+    - BUILDRUN_HASH
+
+steps:
+  - type: Command
+    name: "Create BUILDRUN_HASH variable"
+    timeoutInSeconds: 40
+    failImmediatelyOnError: true
+    command: |
+      export BUILDRUN_HASH=`echo ${OCI_PRIMARY_SOURCE_COMMIT_HASH} | cut -c 1-7`
+      echo "BUILDRUN_HASH: " $BUILDRUN_HASH
+
+  - type: Command
+    name: "Install kubectl"
+    timeoutInSeconds: 4000
+    failImmediatelyOnError: false
+    command: |
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      echo -n "kubectl version: "
+      kubectl version --client=true
+
+  - type: Command
+    name: "Install kustomize"
+    timeoutInSeconds: 4000
+    failImmediatelyOnError: true
+    command: |
+      curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+      install -o root -g root -m 0755 kustomize /usr/local/bin/kustomize
+      echo -n "kustomize version: "
+      kustomize version
+
+  - type: Command
+    name: "Build IAM kubernetes manifest"
+    timeoutInSeconds: 4000
+    failImmediatelyOnError: true
+    command: |
+      kustomize build vivo-sso/automation/overlays/iam-spc -o k8s_iam_manifest.yaml
+      ls -l k8s_iam_manifest.yaml
+
+  - type: Command
+    name: "Create kubeconfig"
+    timeoutInSeconds: 4000
+    failImmediatelyOnError: true
+    command: |
+      cat << EOT > kubeconfig
+      apiVersion: v1
+      kind: Config
+      clusters:
+      - name: cluster-cxdwtksy77a
+        cluster:
+          server: https://10.51.203.56:6443
+          certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURpRENDQW5DZ0F3SUJBZ0lRTkN4cGk2MUMvRVVOM2o1akxqSGJpREFOQmdrcWhraUc5dzBCQVFzRkFEQmUKTVE4d0RRWURWUVFEREFaTE9ITWdRMEV4Q3pBSkJnTlZCQVlUQWxWVE1ROHdEUVlEVlFRSERBWkJkWE4wYVc0eApEekFOQmdOVkJBb01Cazl5WVdOc1pURU1NQW9HQTFVRUN3d0RUMk5wTVE0d0RBWURWUVFJREFWVVpYaGhjekFlCkZ3MHlOREV4TWpZeU1ERTFOVGxhRncweU9URXhNall5TURFMU5UbGFNRjR4RHpBTkJnTlZCQU1NQmtzNGN5QkQKUVRFTE1Ba0dBMVVFQmhNQ1ZWTXhEekFOQmdOVkJBY01Ca0YxYzNScGJqRVBNQTBHQTFVRUNnd0dUM0poWTJ4bApNUXd3Q2dZRFZRUUxEQU5QWTJreERqQU1CZ05WQkFnTUJWUmxlR0Z6TUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGCkFBT0NBUThBTUlJQkNnS0NBUUVBMjVURTFJQ2NQeUNRcWdaZTZVYW9hT2lERUpHdnFyL1BtblIrSlpkeUpaTUIKTGZtbXVJWVZVMzR0OHhGRjQ0S1pYSzErdy9peXE1dy9JdVV2NXAya001MVpTd1VZRDJXaFlaS1N1VkxVVWNMbApDZUVGNXNwMTM1ZEk3ZDdtU2hDTFF4WVM3SnZESlYxSkRJUE56cmxSWDlmSDZVbEhRK2pGYy9WUndCSkRNK2h5ClNiUDE2TGtyYTI1eFYwbk9tYTMyeHhYYXpsM1l4aFp4b2VXeFJLZFNta3JhSmpCd3N2cXZtWDZIR0N2dmJVMGEKL2tRM3hZREZxR0NES3hDUzNhMkRTVTV6OVdEZEF2cDFrd2Z2UG5QajFDT3ByR2dVS2ZrZmxpYmVpdTJ3RXVkeQpZQTRiU0RHNkg2dFdNQ25SNkczTzJkQUhxOVF4alRhTUM3dlRFWEg4MndJREFRQUJvMEl3UURBUEJnTlZIUk1CCkFmOEVCVEFEQVFIL01BNEdBMVVkRHdFQi93UUVBd0lCQmpBZEJnTlZIUTRFRmdRVVE5QkFXVWJRaVFEWXl6alcKaFBITXlVeXZ6VkF3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUY5RFg2RDh4VjJSK1lCODhTcWozek43Z1lYNwpySVdzT0JXcmNud0VVQ2dOeHV2akFVVzBOcHlpVGhoYWN1bmtNamtYOEtOSHF0dTQ4UGlhYzl5RHduZExibEFQCkRvelF1UFJDNVpaS0tMbEtJaVowVVhJblA1NVNMcnlUTXNQU25yMTVzUkJXR3pHTWwybHpxN1NROEx2ZlFFeG0Kb3o0ZUQzY3R6dTRYQ3ZmRmRRUVZsVWI0UVhjdUk1bGErYTkwcU1qR0h0enlSTXllR29FbWQxa2l1VEpGMXRSaApzMmdCUjYrRnhlZjBtamMrcEV0aXdmcTJGTDZScXZBS1lpalo4REt1TklhcExjbXFJR09Cdm9pOC9mblUxVkttCm9LcVNpdkZnd01FWmIweElJb3YwUnVVWXYvZWlZcjdia1BJSXRhdnNBb3A0SDB2ZDZ5OVFlTno2aFowPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+      users:
+      - name: pipeline-sa
+        user:
+          token: ${SA_TOKEN}
+      contexts:
+      - name: context-cxdwtksy77a
+        context:
+          cluster: cluster-cxdwtksy77a
+          user: pipeline-sa
+      current-context: context-cxdwtksy77a
+      EOT
+      chmod 0600 kubeconfig
+      ls -l kubeconfig
+
+  - type: Command
+    name: "Deploy IAM"
+    timeoutInSeconds: 4000
+    failImmediatelyOnError: true
+    command: |
+      export KUBECONFIG=./kubeconfig
+      kubectl apply -f k8s_iam_manifest.yaml
+      kubectl -n iam wait --for=condition=Ready pods -l app.kubernetes.io/name=iam-static --timeout=360s
+      kubectl -n iam wait --for=condition=Ready pods -l app.kubernetes.io/name=iam-service --timeout=360s
+      kubectl -n iam get pods -l app.kubernetes.io/instance=iam
+

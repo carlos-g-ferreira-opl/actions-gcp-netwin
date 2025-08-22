@@ -1,0 +1,340 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/instance: iam
+  name: iam-migrate
+data:
+  ansiblevars_defaults.yaml: |-
+    ---
+    # Enable console logs
+    iam_jbossas_log_console_enabled: True
+    # Identity Provider (IdP) access (VIP: name.domain, IP)
+    iam_IDP_addr: iam.local
+    # Identity Provider (IdP) API
+    iam_IDP_API_addr: "iam-service"
+    # Database Address (default to "iam-db" service)
+    iam_db_addr: iam-db
+    # DB port
+    iam_db_port: 5432
+    # DB name
+    iam_db_dbname: iam
+    # DB user to create (Required in Azure)
+    iam_create_db_user: "{{ iam_db_user }}"
+    # DB user
+    iam_db_user: iam
+    # DB password (Default read from file)
+    iam_db_password: "{{ lookup('file', '/opt/ptin/iam/conf/kube/iam-db-password') }}"
+    iam_db_ssl: False
+    # PSQL DB Connection String
+    iam_db_conn_string: "{%- if iam_db_ssl -%}--set=sslmode=require {%- endif -%}-h {{ iam_db_addr }} -p {{ iam_db_port }} -d {{ iam_db_dbname }} -U {{ iam_db_user }} "
+    # JDBC Connection String
+    iam_db_url_tmp: "{{ iam_db_addr }}:{{ iam_db_port }}/{{ iam_db_dbname }}{%- if iam_db_ssl -%}?sslmode=require{%- endif -%}"
+    # DB Admin DBName
+    iam_db_adhoc_dbname: postgres
+    # DB Admin user
+    iam_db_adhoc_user: postgres
+    # DB Admin password (Default read from file)
+    iam_db_adhoc_pass: "{{ lookup('file', '/opt/ptin/iam/conf/kube/iam-admin-db-password') }}"
+    # DB Admin user
+    iam_db_padmin_user: "{{ iam_db_adhoc_user }}"
+    # DB Admin password
+    iam_db_padmin_pass: "{{ iam_db_adhoc_pass }}"
+    # DB Admin Connection String
+    iam_adhoc_conn_string: "{%- if iam_db_ssl -%}--set=sslmode=require {%- endif -%}-h {{ iam_db_addr }} -p {{ iam_db_port }} -d {{ iam_db_adhoc_dbname }} -U {{ iam_db_adhoc_user }}"
+    # type of database (possible values: pgsql11 | pgsql12 | pgsql13 | ora11 | ora12 | ora19)
+    iam_db_type: pgsql11
+    # version of database in number format
+    iam_pgsql_minorVersion: 11
+    # os red hat verison
+    redHat_version: 7
+    # OS Admin user
+    iam_so_padmin_user: padmin
+    # OS Admin password
+    iam_so_padmin_group: padmin
+    # Skip DB Creation
+    iam_skip_db_creation: false
+
+  ansiblevars.yaml: |-
+    ---
+    # Identity Provider (IdP) access (VIP: name.domain, IP)
+    iam_IDP_addr: iam.t-k8s.ptin.corppt.com
+    # Database Address (default to "iam-db" service)
+    #iam_db_addr: iam-db
+    # DB port
+    #iam_db_port: 5432
+    # DB name
+    #iam_db_dbname: iam
+    # DB user to create (Required in Azure)
+    #iam_create_db_user: iam
+    # DB user
+    #iam_db_user: iam
+    # DB Admin DBName
+    #iam_db_adhoc_dbname: postgres
+    # DB Admin user 
+    #iam_db_adhoc_user: postgres
+    # Skip DB Creation
+    #iam_skip_db_creation: false
+    
+    #iam_core_modules:
+    #  - iam-application
+    #  - iam-dynamic-auto-provisioning
+    #iam_server_url: http://127.0.0.1:8080
+    # The entity to provision on IAM ( Options: role | usergroup )
+    #iam_attributeIs: usergroup
+    # The attribute id which is to retrieve the entity value to provision
+    #iam_attribute_id: identifieruuid
+    # Set true if is to clean the previous entities or false if is to add new entity
+    #iam_entity_clean: true
+    # Service which will belong the credentials
+    #iam_auto_provisioning_service_name: "IAM :: Admin Panel"
+    
+    #Define propriedades do portal de autenticação (estas propriedades estão descritas mais abaixo no ponto 1.2 para o ficheiro iam-authentication-portal.properties)
+    #iam_AUTH_properties:
+    #  - { name: 'AutoCreateStoreId' , VALUE: 'yyyyyy'}
+
+  migrate.sh: |-
+    ansible-playbook -vv --diff -i /opt/ptin/automation/iam/inventory/sample /opt/ptin/automation/iam/create_iam_db_adhoc.yml --skip-tags iam_yum --vault-password-file /opt/ptin/iam/conf/kube/vault-password-file -e @/opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml -e @/opt/ptin/iam/conf/kube/ansiblevars.yaml || exit 1
+    ansible-playbook -vv --diff -i /opt/ptin/automation/iam/inventory/sample /opt/ptin/automation/iam/config_migrate.yml --skip-tags iam_yum --vault-password-file /opt/ptin/iam/conf/kube/vault-password-file -e @/opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml -e @/opt/ptin/iam/conf/kube/ansiblevars.yaml || exit 1
+    ansible-playbook -vv --diff -i /opt/ptin/automation/iam/inventory/sample /opt/ptin/automation/iam/run_migrate.yml --skip-tags iam_yum,validate --vault-password-file /opt/ptin/iam/conf/kube/vault-password-file -e @/opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml -e @/opt/ptin/iam/conf/kube/ansiblevars.yaml || exit 1
+
+  run.sh: |-
+    ansible-playbook -vv --diff -i /opt/ptin/automation/iam/inventory/sample /opt/ptin/automation/iam/config_iam_portals.yml --skip-tags iam_yum -e @/opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml -e @/opt/ptin/iam/conf/kube/ansiblevars.yaml || exit 1
+    ansible-playbook -vv --diff -i /opt/ptin/automation/iam/inventory/sample /opt/ptin/automation/iam/config_iam_core.yml --skip-tags iam_yum -e @/opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml -e @/opt/ptin/iam/conf/kube/ansiblevars.yaml || exit 1
+    ansible-playbook -vv --diff -i /opt/ptin/automation/iam/inventory/sample /opt/ptin/automation/iam/config_iam_auto_provisioning.yml --skip-tags iam_yum -e @/opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml -e @/opt/ptin/iam/conf/kube/ansiblevars.yaml || exit 1
+    ansible-playbook -vv --diff -i /opt/ptin/automation/iam/inventory/sample /opt/ptin/automation/iam/prepare_iam_app_jb10.yml --skip-tags iam_yum,iam_service -e @/opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml -e @/opt/ptin/iam/conf/kube/ansiblevars.yaml || exit 1
+    ansible-playbook -vv --diff -i /opt/ptin/automation/iam/inventory/sample /opt/ptin/automation/iam/create_iam_certs.yml --skip-tags iam_yum,iam_service -e @/opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml -e @/opt/ptin/iam/conf/kube/ansiblevars.yaml || exit 1
+    ansible-playbook -vv --diff -i /opt/ptin/automation/iam/inventory/sample /opt/ptin/automation/iam/sync_iam_certs.yml --skip-tags iam_yum,iam_service -e @/opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml -e @/opt/ptin/iam/conf/kube/ansiblevars.yaml || exit 1
+    
+    cd /opt/ptin/iam && \
+    java -Xms1024m -Xmx2048m -XX:MaxPermSize=256m \
+    	-Djava.net.preferIPv4Stack=true \
+    	-Djboss.boot.log.file=/var/log/ptin/iam/service/boot.log \
+    	-Djboss.home.dir=/opt/jbossas \
+    	-Djboss.server.base.dir=/opt/ptin/iam/service \
+    	-Djboss.server.log.dir=/var/log/ptin/iam/service \
+    	-Djboss.server.config.dir=/opt/ptin/iam/service/configuration \
+    	-Djboss.server.data.dir=/var//opt/ptin/iam/service/data \
+    	-Djboss.server.temp.dir=/var//opt/ptin/iam/service/tmp \
+    	-Djboss.socket.binding.port-offset=0 \
+    	-Djboss.bind.address=0.0.0.0 \
+    	-Dlogging.configuration=file:/opt/ptin/iam/service/configuration/logging.properties \
+    	-jar /opt/jbossas/jboss-modules.jar \
+    	-mp /opt/ptin/iam/conf/modules:/opt/jbossas/modules \
+    	-jaxpmodule javax.xml.jaxp-provider org.jboss.as.standalone -c service.xml
+    
+    # Executar Import CSVs na primeira instalação
+    # O serviço do IAM precisa de já estar a correr
+    # kubectl exec --stdin --tty deployment.apps/iam-service -- ansible-playbook -vv --diff -i /opt/ptin/automation/iam/inventory/sample /opt/ptin/automation/iam/import_csv_generate_credentials.yml --skip-tags iam_yum -e @/opt/ptin/iam/conf/kube/ansiblevars_defaults.yaml -e @/opt/ptin/iam/conf/kube/ansiblevars.yaml
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/instance: iam
+  name: nginx-files
+data:
+  iam.conf: |-
+    server {
+        listen              8080;
+        #server_name  localhost;
+        charset             utf-8;
+        #access_log          /var/log/nginx/iam-service.access.log;
+        #error_log           /var/log/nginx/iam-service.error.log;
+
+        location = / {
+            return 301  https://$host/self/;
+        }
+
+        location = /health {
+            add_header Content-Type text/plain;
+            return 200 'Nginx OK';
+        }
+
+        location /iam/images/ {
+            root /opt/ptin/;
+            autoindex on;
+        }
+
+        location /fuxi {
+            alias /opt/ptin/fuxi;
+            autoindex on;
+            ssi on;
+        }
+
+        location /basepack {
+            alias /opt/ptin/basepack/web;
+            autoindex on;
+            ssi on;
+        }
+        location /iam-fuxi {
+            alias /opt/ptin/iam/iam-fuxi;
+            autoindex on;
+            ssi on;
+        }
+        location /idp/fuxi {
+            rewrite ^(.*)/idp/(.*)$ /$2 last;
+        }
+        location /idp/basepack {
+            rewrite ^(.*)/idp/(.*)$ /$2 last;
+        }
+        location /idp/iam-fuxi {
+            rewrite ^(.*)/idp/(.*)$ /$2 last;
+        }
+        location /idp/iam/images/ {
+            rewrite ^(.*)/idp/(.*)$ /$2 last;
+        }
+
+        location / {
+            proxy_read_timeout 120s;
+
+            add_header X-Content-Type-Options "nosniff";
+            add_header Cache-Control "no-store";
+            add_header Pragma "no-cache";
+            add_header X-Frame-Options "SAMEORIGIN";
+            add_header Referrer-Policy strict-origin-when-cross-origin;
+            add_header Content-Security-Policy "default-src 'self' 'unsafe-inline' data:; img-src * data: blob:; object-src 'self'; script-src 'self' 'unsafe-inline' blob: data:; connect-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'self'; frame-ancestors 'self'; upgrade-insecure-requests; block-all-mixed-content;";
+
+            proxy_cookie_path  /idp  "/idp; secure; SameSite=None";
+            proxy_cookie_path  /admin-console  "/admin-console; secure; HttpOnly; SameSite=lax";
+            proxy_cookie_path  /self  "/self; secure; HttpOnly; SameSite=lax";
+            proxy_cookie_path  /admin-panel  "/admin-panel; secure; HttpOnly; SameSite=lax";
+            proxy_cookie_path  /api-browser  "/api-browser; secure; HttpOnly; SameSite=lax";
+            proxy_cookie_path  /oauth  "/oauth; secure; HttpOnly; SameSite=lax";
+
+            proxy_pass          http://iam-service:8081/;
+        }
+        
+        location /idp/authorize {
+            proxy_read_timeout 120s;
+
+            add_header X-Content-Type-Options "nosniff";
+            add_header Cache-Control "no-store";
+            add_header Pragma "no-cache";
+            add_header Referrer-Policy strict-origin-when-cross-origin;
+            add_header Content-Security-Policy "default-src 'self' 'unsafe-inline' data:; img-src * data: blob:; object-src 'self'; script-src 'self' 'unsafe-inline' blob: data:; connect-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'self'; upgrade-insecure-requests; block-all-mixed-content;";
+
+            proxy_cookie_path  /idp  "/idp; secure; SameSite=None";
+
+            proxy_pass          http://iam-service:8081/idp/authorize;
+        }
+        
+        location /idp/checksession {
+            proxy_read_timeout 120s;
+
+            add_header X-Content-Type-Options "nosniff";
+            add_header Cache-Control "no-store";
+            add_header Pragma "no-cache";
+            add_header Referrer-Policy strict-origin-when-cross-origin;
+            add_header Content-Security-Policy "default-src 'self' 'unsafe-inline' data:; img-src * data: blob:; object-src 'self'; script-src 'self' 'unsafe-inline' blob: data:; connect-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'self'; upgrade-insecure-requests; block-all-mixed-content;";
+
+            proxy_cookie_path  /idp  "/idp; secure; SameSite=None";
+
+            proxy_pass          http://iam-service:8081/idp/checksession;
+        }
+
+        location /api/import {
+            proxy_connect_timeout 1800s;
+            proxy_read_timeout 1800s;
+            proxy_send_timeout 1800s;
+        }
+
+        location /admin-panel/tools/export {
+            proxy_connect_timeout 1800s;
+            proxy_read_timeout 1800s;
+            proxy_send_timeout 1800s;
+
+            add_header X-Content-Type-Options "nosniff";
+            add_header Cache-Control "no-store";
+            add_header Pragma "no-cache";
+            add_header X-Frame-Options "SAMEORIGIN";
+            add_header Referrer-Policy strict-origin-when-cross-origin;
+            add_header Content-Security-Policy "default-src 'self' 'unsafe-inline' data:; img-src * data: blob:; object-src 'self'; script-src 'self' 'unsafe-inline' blob: data:; connect-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'self'; frame-ancestors 'self'; upgrade-insecure-requests; block-all-mixed-content;";
+
+            proxy_cookie_path  /admin-panel  "/admin-panel; secure; HttpOnly; SameSite=lax";
+
+            ## The actual node address
+            proxy_pass          http://iam-service:8081/admin-panel/tools/export;
+        }
+    }
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/instance: iam
+  name: iam-aui
+data:
+  iam-aui-synchronism.properties: |-
+    iam.server.url=
+    iam.service.credentials.id=
+    iam.service.credentials.secret=
+    iam.store.id=
+    aui.soap.service=
+    aui.soap.namespace.url=
+    aui.app.user=
+    aui.app.pass=
+    aui.basic.user=
+    aui.basic.pass=
+    aui.options=
+
+  iam-aui-auto-provisioning.properties: |-
+    iam.server.url=
+    iam.service.credentials.id=
+    iam.service.credentials.secret=
+    aui.soap.service=
+    aui.soap.namespace.url=
+    aui.app.user=
+    aui.app.pass=
+    aui.basic.user=
+    aui.basic.pass=
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/instance: iam
+  name: iam-role-create-db
+data:
+  main.yml: |-
+    - name: Try creating IAM PostgreSQL DB
+      environment:
+        PGPASSWORD: '{{ iam_db_adhoc_pass }}'
+      command: >
+        psql {{ iam_adhoc_conn_string }} -c "CREATE DATABASE {{ iam_db_dbname }};"
+      when: (iam_db_type is search("pgsql")) and not (iam_skip_db_creation is defined and iam_skip_db_creation)
+      register: command_result
+      failed_when:
+        - command_result.stderr
+        - "'ERROR:  database \"{{ iam_db_dbname }}\" already exists' not in command_result.stderr"
+    
+    - name: Create iam user
+      environment:
+        PGPASSWORD: '{{ iam_db_adhoc_pass }}'
+      when: iam_db_type is search("pgsql") and not (iam_skip_db_creation is defined and iam_skip_db_creation)
+      command: >
+        psql {{ iam_adhoc_conn_string }} -c
+        'DO
+         $do$
+         BEGIN
+            IF NOT EXISTS (
+               SELECT
+               FROM   pg_catalog.pg_roles
+               WHERE  rolname = '\''{{ iam_create_db_user }}'\'')
+            THEN
+               CREATE USER {{ iam_create_db_user }} WITH ENCRYPTED PASSWORD '\''{{iam_db_password }}'\'';
+            END IF;
+            GRANT ALL PRIVILEGES ON DATABASE {{ iam_db_dbname }} to {{ iam_create_db_user }};
+         END
+         $do$;'
+    
+    - name: Create iam schema
+      environment:
+        PGPASSWORD: '{{ iam_db_password }}'
+      when: iam_db_type is search("pgsql")
+      command: >
+        psql {{ iam_db_conn_string }} -c "CREATE SCHEMA IF NOT EXISTS iam AUTHORIZATION {{ iam_create_db_user }};"

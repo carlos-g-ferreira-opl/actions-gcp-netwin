@@ -1,0 +1,30 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: iam-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx #gce
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/affinity-mode: persistent
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: nossis-ca-issuer
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - iam.internal.vivo.com.br
+      secretName: iam-tls-cert
+  rules:
+    - host: iam.internal.vivo.com.br
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: iam-static
+                port:
+                  number: 80
+

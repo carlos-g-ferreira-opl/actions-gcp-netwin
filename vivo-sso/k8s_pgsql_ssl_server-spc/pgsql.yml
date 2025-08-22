@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-iam
+spec:
+  selector:
+    matchLabels:
+      app: postgres
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      nodeSelector:
+        applications: nossisone
+      securityContext:
+          runAsUser: 70
+          supplementalGroups: [70]
+          fsGroup: 70
+      containers:
+        - name: postgres
+          image: postgres
+          imagePullPolicy: "IfNotPresent"
+          args:
+            - -c
+            - hba_file=/var/lib/postgresql/data/config/pg_hba.conf
+            - -c
+            - config_file=/var/lib/postgresql/data/config/postgresql.conf
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: postgres
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          envFrom:
+            - secretRef:
+                name: postgres-iam-secret
+          volumeMounts:
+            - name: database
+              mountPath: /var/lib/postgresql/data
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+            - name: postgres-iam-tls
+              mountPath: /var/lib/postgresql/data/certs
+              readOnly: true
+            - name: postgres-iam-config
+              mountPath: /var/lib/postgresql/data/config/postgresql.conf
+              subPath: postgresql.conf
+            - name: postgres-iam-config
+              mountPath: /var/lib/postgresql/data/config/pg_hba.conf
+              subPath: pg_hba.conf
+            - name: secrets-store-inline
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+      volumes:
+      - name: database
+        persistentVolumeClaim:
+          claimName: postgres-iam-pvc
+      - name: initdb
+        configMap:
+          name: postgres-iam-initdb
+      - name: postgres-iam-tls
+        secret:
+          secretName: postgres-iam-tls
+          items:
+            - key: ca.crt
+              path: ca.crt
+              mode: 0644
+            - key: tls.crt
+              path: tls.crt
+              mode: 0644
+            - key: tls.key
+              path: tls.key 
+              mode: 0640
+      - name: postgres-iam-config
+        configMap:
+          name: postgres-iam-config
+      - name: secrets-store-inline
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "pgsql-credentials"
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: postgres-iam-svc
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+  type: ClusterIP
